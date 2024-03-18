@@ -4,7 +4,7 @@ For the ffmpeg GSoC submission, I have to write a qualification task - a 2D Haar
 
 I was not sure if it meant just writing shaders or writing the whole Haas filter, so I did both :P
 
-The filter is in `include/` and `src` and the glsl in `shaders/`
+The filter is in `include/` and `src/` and the glsl in `shaders/`
 
 ## Algorithm explanation
 A 2D Haar transform is just a composition of two 1D haar transforms: one vertical and one horizontal.
@@ -15,7 +15,7 @@ Also, the filters create two pipelines, so if that's a no-no in filters, then I'
 
 
 To simplify reading shaders, I'll also add them here:
-## Horizontal pass Haar filter
+## Horizontal Haar wavelet
 ```glsl
 #version 450
 
@@ -61,7 +61,7 @@ void main() {
 }
 ```
 
-## Vertical pass Haar filter
+## Vertical Haar wavelet
 ```glsl
 #version 450
 
