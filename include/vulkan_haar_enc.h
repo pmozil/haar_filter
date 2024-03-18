@@ -28,27 +28,27 @@ typedef struct HaarFilterContext {
 } HaarFilterContext;
 
 static const char haar_horiz[] = {
-    C(0, void haar_horiz(const ivec2 pos, const ivec2 size) {                        )
-    C(1,   const ivec2 real_pos = ivec2(pos.x * 2, pos.y);                           )
-    C(1,   const ivec3 colorN = texture(inputImage, real_pos);                       )
-    C(1,   const ivec3 colorN_1 = texture(inputImage, ivec2(real_pos.x + 1, pos.y)); )
-    C(0,                                                                             )
-    C(1,   imageStore(image, pos.xy, colorN + colorN_1);                             )
-    C(1,   imageStore(image, ivec2(pos.x + size.x, pos.y),                           )
-    C(2,       colorN - color_N_1);                                                  )
-    C(0, }                                                                           )
+    C(0, void haar_horiz(const ivec2 pos, const ivec2 size) {                       )
+    C(1,   const ivec2 real_pos = ivec2(pos.x * 2, pos.y);                          )
+    C(1,   const vec4 colorN = texture(inputImage, real_pos);                       )
+    C(1,   const vec4 colorN_1 = texture(inputImage, ivec2(real_pos.x + 1, pos.y)); )
+    C(0,                                                                            )
+    C(1,   imageStore(outputImage, pos.xy, colorN + colorN_1);                      )
+    C(1,   imageStore(outputImage, ivec2(pos.x + size.x, pos.y),                    )
+    C(2,       colorN - colorN_1);                                                  )
+    C(0, }                                                                          )
 };
 
 static const char haar_vert[] = {
-    C(0, void haar_vert(const ivec2 pos, const ivec2 size) {                         )
-    C(1,   const ivec2 real_pos = ivec2(pos.x * 2, pos.y);                           )
-    C(1,   const ivec3 colorN = texture(inputImage, real_pos);                       )
-    C(1,   const ivec3 colorN_1 = texture(inputImage, ivec2(real_pos.x + 1, pos.y)); )
-    C(1,                                                                             )
-    C(1,   imageStore(image, pos.xy, colorN + colorN_1);                             )
-    C(1,   imageStore(image, ivec2(pos.x + size.x, pos.y),                           )
-    C(2,       colorN - color_N_1);                                                  )
-    C(0, }                                                                           )
+    C(0, void haar_vert(const ivec2 pos, const ivec2 size) {                        )
+    C(1,   const ivec2 real_pos = ivec2(pos.x, pos.y * 2);                          )
+    C(1,   const vec4 colorN = texture(inputImage, real_pos);                       )
+    C(1,   const vec4 colorN_1 = texture(inputImage, ivec2(real_pos.x, pos.y + 1)); )
+    C(0,                                                                            )
+    C(1,   imageStore(outputImage, pos.xy, colorN + colorN_1);                      )
+    C(1,   imageStore(outputImage, ivec2(pos.x, pos.y + size.y),                    )
+    C(2,       colorN - colorN_1);                                                  )
+    C(0, }                                                                          )
 };
 
 

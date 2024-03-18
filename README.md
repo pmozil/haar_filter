@@ -13,27 +13,33 @@ Since the shaders should likely be compute shaders, I used the global variables 
 
 Also, the filters create two pipelines, so if that's a no-no in filters, then I'll rewrite that)
 
+## Note
+To validate shader correctness, just use
+```bash
+glslc --target-env=vulkan1.3 -O -finvert-y -fshader-stage=comp <file>.glsl -o <file>.spv
+```
+
 
 To simplify reading shaders, I'll also add them here:
 ## Horizontal Haar wavelet
 ```glsl
 #version 450
 
-layout(set = 0, binding = 0) in sampler2D inputImage;
-layout(set = 0, binding = 1) out image2D outputImage;
+layout(set = 0, binding = 0) uniform sampler2D inputImage;
+layout(set = 0, binding = 1) uniform writeonly image2D outputImage;
 
 layout(push_constant, std430) uniform pushConstants {
   ivec2 img_size;
 };
 
-void haar_horiz(const ivec2 pos) {
+void haar_horiz(const ivec2 pos, const ivec2 size) {
   const ivec2 real_pos = ivec2(pos.x * 2, pos.y);
-  const ivec3 colorN = texture(inputImage, real_pos);
-  const ivec3 colorN_1 = texture(inputImage, ivec2(real_pos.x + 1, pos.y));
+  const vec4 colorN = texture(inputImage, real_pos);
+  const vec4 colorN_1 = texture(inputImage, ivec2(real_pos.x + 1, pos.y));
 
-  imageStore(image, pos.xy, colorN + colorN_1);
-  imageStore(image, ivec2(pos.x + size.x, pos.y),
-      colorN - color_N_1);
+  imageStore(outputImage, pos.xy, colorN + colorN_1);
+  imageStore(outputImage, ivec2(pos.x + size.x, pos.y),
+      colorN - colorN_1);
 }
 
 void main() {
@@ -48,15 +54,15 @@ void main() {
   const ivec2 scaled_size = img_size / 2;
 
   while (pos.y < img_size.y) {
-    pos.x = gl_GlobalInvocationID.x;
+    pos.x = int(gl_GlobalInvocationID.x);
     while (pos.x < img_size.x / 2) {
       if (pos.x + 1 >= img_size.x) {
           return;
       }
       haar_horiz(pos, scaled_size);
-      pos.x += gl_NumWorkGroups.x;
+      pos.x += int(gl_NumWorkGroups.x);
     }
-    pos.y += gl_NumWorkGroups.y;
+    pos.y += int(gl_NumWorkGroups.y);
   }
 }
 ```
@@ -65,44 +71,44 @@ void main() {
 ```glsl
 #version 450
 
-layout(set = 0, binding = 0) in sampler2D inputImage;
-layout(set = 0, binding = 1) out image2D outputImage;
+layout(set = 0, binding = 0) uniform sampler2D inputImage;
+layout(set = 0, binding = 1) uniform writeonly image2D outputImage;
 
 layout(push_constant, std430) uniform pushConstants {
   ivec2 img_size;
 };
 
-void haar_vert(const ivec2 pos) {
+void haar_vert(const ivec2 pos, const ivec2 size) {
   const ivec2 real_pos = ivec2(pos.x, pos.y * 2);
-  const ivec3 colorN = texture(inputImage, real_pos);
-  const ivec3 colorN_1 = texture(inputImage, ivec2(real_pos.x, pos.y + 1));
+  const vec4 colorN = texture(inputImage, real_pos);
+  const vec4 colorN_1 = texture(inputImage, ivec2(real_pos.x, pos.y + 1));
 
-  imageStore(image, pos.xy, colorN + colorN_1);
-  imageStore(image, ivec2(pos.x, pos.y + size.y),
-      colorN - color_N_1);
+  imageStore(outputImage, pos.xy, colorN + colorN_1);
+  imageStore(outputImage, ivec2(pos.x + size.x, pos.y),
+      colorN - colorN_1);
 }
 
 void main() {
   ivec2 pos = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
 
-  if (pos.y * 2 >= img_size.y ||
-        pos.y + 1 >= img_size.y ||
-        pos.x >= img_size.x) {
+  if (pos.x * 2 >= img_size.x ||
+        pos.x + 1 >= img_size.x ||
+        pos.y >= img_size.y) {
       return;
   }
 
   const ivec2 scaled_size = img_size / 2;
 
   while (pos.x < img_size.x) {
-    pos.y = gl_GlobalInvocationID.y;
+    pos.y = int(gl_GlobalInvocationID.y);
     while (pos.y < img_size.y / 2) {
       if (pos.y + 1 >= img_size.y) {
           return;
       }
-      haar_evrt(pos, scaled_size);
-      pos.y += gl_NumWorkGroups.y;
+      haar_vert(pos, scaled_size);
+      pos.y += int(gl_NumWorkGroups.y);
     }
-    pos.x += gl_NumWorkGroups.x;
+    pos.x += int(gl_NumWorkGroups.x);
   }
 }
 ```
