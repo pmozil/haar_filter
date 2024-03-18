@@ -1,0 +1,17 @@
+CompileFlags:
+  # Treat code as C++, use C++20 standard, enable more warnings.
+  Add: [-std=c99, -Wall, -Wextra, -Wpedantic, \
+    -Waddress, -Walign-mismatch, -Wambiguous-delete, \
+    -Wambiguous-macro, -Wargument-undefined-behaviour]
+  Remove: -mabi
+
+Index:
+  Background: Skip
+
+Diagnostics:
+  # Tweak Clang-Tidy checks.
+  ClangTidy:
+    Add: [performance*, modernize*, readability*, bugprone*, cppcoreguidelines*, misc*]
+    Remove: [modernize-use-trailing-return-type, cppcoreguidelines-owning-memory]
+    CheckOptions:
+      readability-identifier-naming.VariableCase: camelCase
