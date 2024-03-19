@@ -44,10 +44,10 @@ void main() {
       //     (11 - 21 + 12 - 22)........(11 - 12 - 21 + 22)
       // ---------------------------------------------
       const ivec2 real_pos = pos * 2;
-      const vec4 pix_11 = texture(inputImage, real_pos);
-      const vec4 pix_12 = texture(inputImage, ivec2(real_pos.x + 1, real_pos.y);
-      const vec4 pix_21 = texture(inputImage, ivec2(real_pos.x, real_pos.y + 1);
-      const vec4 pix_22 = texture(inputImage, ivec2(real_pos.x + 1, real_pos.y + 1);
+      const vec4 pix_11 = texture(inputImage, real_pos / img_size);
+      const vec4 pix_12 = texture(inputImage, vec2(real_pos.x + 1, real_pos.y) / img_size);
+      const vec4 pix_21 = texture(inputImage, vec2(real_pos.x, real_pos.y + 1) / img_size);
+      const vec4 pix_22 = texture(inputImage, vec2(real_pos.x + 1, real_pos.y + 1) / img_size);
 
       imageStore(outputImage, pos.xy, pix_11 + pix_12 + pix_21);
       imageStore(outputImage, ivec2(pos.x + scaled_size.x, pos.y),
