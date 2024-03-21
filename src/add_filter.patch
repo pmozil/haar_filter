@@ -1,0 +1,36 @@
+diff --git a/Makefile b/Makefile
+index b309dbc4db..6da1114738 100644
+--- a/Makefile
++++ b/Makefile
+@@ -38,6 +38,7 @@ SKIPHEADERS = compat/w32pthreads.h
+ 
+ # first so "all" becomes default target
+ all: all-yes
++	echo $(LDFLAGS)
+ 
+ include $(SRC_PATH)/tools/Makefile
+ include $(SRC_PATH)/ffbuild/common.mak
+diff --git a/libavfilter/Makefile b/libavfilter/Makefile
+index 994d9773ba..4c288040f7 100644
+--- a/libavfilter/Makefile
++++ b/libavfilter/Makefile
+@@ -188,6 +188,7 @@ OBJS-$(CONFIG_SINE_FILTER)                   += asrc_sine.o
+ OBJS-$(CONFIG_ANULLSINK_FILTER)              += asink_anullsink.o
+ 
+ # video filters
++OBJS-$(CONFIG_HAAR_VULKAN_FILTER)            += vf_haar_filter_vulkan.o vulkan.o vulkan_filter.o
+ OBJS-$(CONFIG_ADDROI_FILTER)                 += vf_addroi.o
+ OBJS-$(CONFIG_ALPHAEXTRACT_FILTER)           += vf_extractplanes.o
+ OBJS-$(CONFIG_ALPHAMERGE_FILTER)             += vf_alphamerge.o framesync.o
+diff --git a/libavfilter/allfilters.c b/libavfilter/allfilters.c
+index 149bf50997..8be8b1ee27 100644
+--- a/libavfilter/allfilters.c
++++ b/libavfilter/allfilters.c
+@@ -21,6 +21,7 @@
+ 
+ #include "avfilter.h"
+ 
++extern const AVFilter ff_vf_haar_vulkan;
+ extern const AVFilter ff_af_aap;
+ extern const AVFilter ff_af_abench;
+ extern const AVFilter ff_af_acompressor;
