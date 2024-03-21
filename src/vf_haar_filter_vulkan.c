@@ -23,18 +23,19 @@ typedef struct HaarFilterContext {
 } HaarFilterContext;
 
 static const char haar_filt[] = {
-    C(0, void haar_block(const ivec2 pos, const ivec2 scaled_size)) C(0, {                                                               )
-    C(1,  const ivec2 real_pos = pos * 2;                                                    )
-    C(1,  const vec4 pix_11 = texture(inputImage[0], real_pos);                              )
-    C(1,  const vec4 pix_12 = texture(inputImage[0], ivec2(real_pos.x + 1, real_pos.y));     )
-    C(1,  const vec4 pix_21 = texture(inputImage[0], ivec2(real_pos.x, real_pos.y + 1));     )
-    C(1,  const vec4 pix_22 = texture(inputImage[0], ivec2(real_pos.x + 1, real_pos.y + 1)); )
-    C(1,  imageStore(outputImage[0], pos.xy, pix_11 + pix_12 + pix_21);                      )
-    C(1,  imageStore(outputImage[0], ivec2(pos.x + scaled_size.x, pos.y), pix_11 - pix_12 + pix_21 + pix_22);)
-    C(1,  imageStore(outputImage[0], ivec2(pos.x, pos.y + scaled_size.y), pix_11 + pix_12 - pix_21 - pix_22);)
-    C(1,  imageStore(outputImage[0], pos + scaled_size, pix_11 - pix_12 - pix_21 + pix_22);)
-    C(0,
-    })};
+    C(0, void haar_block(const ivec2 pos, const ivec2 scaled_size)                                                        )
+    C(0, {                                                                                                                )
+    C(1,  const ivec2 real_pos = pos * 2;                                                                                 )
+    C(1,  const vec3 pix_11 = texture(inputImage[0], real_pos).rgb;                                                       )
+    C(1,  const vec3 pix_12 = texture(inputImage[0], ivec2(real_pos.x + 1, real_pos.y)).rgb;                              )
+    C(1,  const vec3 pix_21 = texture(inputImage[0], ivec2(real_pos.x, real_pos.y + 1)).rgb;                              )
+    C(1,  const vec3 pix_22 = texture(inputImage[0], ivec2(real_pos.x + 1, real_pos.y + 1)).rgb;                          )
+    C(1,  imageStore(outputImage[0], pos, vec4(pix_11 + pix_12 + pix_21, 1.0));                                           )
+    C(1,  imageStore(outputImage[0], ivec2(pos.x + scaled_size.x, pos.y), vec4(pix_11 - pix_12 + pix_21 + pix_22, 1.0));  )
+    C(1,  imageStore(outputImage[0], ivec2(pos.x, pos.y + scaled_size.y), vec4(pix_11 + pix_12 - pix_21 - pix_22, 1.0));  )
+    C(1,  imageStore(outputImage[0], pos + scaled_size, vec4(pix_11 - pix_12 - pix_21 + pix_22, 1.0));                    )
+    C(0,}                                                                                                                 )
+};
 
 static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
   int err;
@@ -98,13 +99,13 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
   GLSLC(0, void main()                                                          );
   GLSLC(0, {                                                                    );
   GLSLC(1, ivec2 pos = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y); );
-  // GLSLC(1, if (pos.x * 2 >= img_size.x || pos.x + 1 >= img_size.x || pos.y * 2 >= img_size.y || pos.y + 1 >= img_size.y) {);
-  // GLSLC(2,             return;                                                  );
-  // GLSLC(1, }                                                                    );
+  GLSLC(1, if (pos.x * 2 >= img_size.x || pos.x + 1 >= img_size.x || pos.y * 2 >= img_size.y || pos.y + 1 >= img_size.y) {);
+  GLSLC(2,             return;                                                  );
+  GLSLC(1, }                                                                    );
   GLSLC(1, const ivec2 scaled_size = img_size / 2;                              );
-  GLSLC(1, while (pos.x < img_size.x) {                                         );
+  GLSLC(1, while (pos.x < scaled_size.x) {                                      );
   GLSLC(2,     pos.y = int(gl_GlobalInvocationID.y);                            );
-  GLSLC(2,     while (pos.y < img_size.y / 2) {                                 );
+  GLSLC(2,     while (pos.y < scaled_size.y) {                                  );
   GLSLC(3,         if (pos.y + 1 >= img_size.y) {                               );
   GLSLC(4,             return;                                                  );
   GLSLC(3,         }                                                            );
