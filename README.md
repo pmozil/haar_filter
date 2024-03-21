@@ -13,8 +13,32 @@ Since the shaders should likely be compute shaders, I used the global variables 
 
 It's possible to jsut do that in one pass, so I wrote  that)
 
-## Note
-Sorry, i'll write the actual tests in a bit, am a little overwhelmed with deadlines rn :(
+## Compiling the filter
+First, copy the `src/vf_haar_filter_vulkan.c` to your `ffmpeg/libavfilter` directory.
+```bash
+cp src/vf_haar_filter_vulkan.c libavfilter/
+```
+Now, apply the patch in the `ffmpeg directory`
+```bash
+git apply src/add_filter.patch
+```
+Reconfigure with vulkan
+```bash
+./configure --enable-vulkan --enable-libshaderc
+```
+Compile
+```bash
+make -j$(nproc)
+```
+And run the filter, lol
+```bash
+./ffmpeg \
+    -init_hw_device vulkan=vk:0 \
+    -filter_hw_device vk \
+    -i <input> \
+    -filter_complex format=rgba,hwupload,haar_vulkan,hwdownload,format=rgba \
+    <output>
+```
 
 ## Block-wise Haar wavelet
 ```glsl
