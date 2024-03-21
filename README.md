@@ -11,7 +11,7 @@ A 2D Haar transform is just a composition of two 1D haar transforms: one vertica
 
 Since the shaders should likely be compute shaders, I used the global variables for compute shaders in vulkan.
 
-Also, the filters create two pipelines, so if that's a no-no in filters, then I'll rewrite that)
+It's possible to jsut do that in one pass, so I wrote  that)
 
 ## Note
 Sorry, i'll write the actual tests in a bit, am a little overwhelmed with deadlines rn :(
