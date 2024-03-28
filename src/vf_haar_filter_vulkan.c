@@ -37,6 +37,28 @@ static const char haar_filt[] = {
     C(0,}                                                                                                                 )
 };
 
+static const char apply_haar_filt[] = {
+  C(0, void apply_filter(const ivec2 im_size)                               )
+  C(0, {                                                                    )
+  C(1, ivec2 pos = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y); )
+  C(1, if (pos.x * 2 >= im_size.x || pos.x + 1 >= im_size.x || pos.y * 2 >= im_size.y || pos.y + 1 >= im_size.y) {)
+  C(2,             return;                                                  )
+  C(1, }                                                                    )
+  C(1, const ivec2 scaled_size = im_size / 2;                               )
+  C(1, while (pos.x < scaled_size.x) {                                      )
+  C(2,     pos.y = int(gl_GlobalInvocationID.y);                            )
+  C(2,     while (pos.y < scaled_size.y) {                                  )
+  C(3,         if (pos.y + 1 >= im_size.y) {                                )
+  C(4,             return;                                                  )
+  C(3,         }                                                            )
+  C(3,         haar_block(pos, scaled_size);                                )
+  C(3,         pos.y += int(gl_NumWorkGroups.y);                            )
+  C(2,       }                                                              )
+  C(2,       pos.x += int(gl_NumWorkGroups.x);                              )
+  C(1,     }                                                                )
+  C(0, }                                                                    )
+};
+
 static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
   int err;
   uint8_t *spv_data;
@@ -102,18 +124,7 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
   GLSLC(1, if (pos.x * 2 >= img_size.x || pos.x + 1 >= img_size.x || pos.y * 2 >= img_size.y || pos.y + 1 >= img_size.y) {);
   GLSLC(2,             return;                                                  );
   GLSLC(1, }                                                                    );
-  GLSLC(1, const ivec2 scaled_size = img_size / 2;                              );
-  GLSLC(1, while (pos.x < scaled_size.x) {                                      );
-  GLSLC(2,     pos.y = int(gl_GlobalInvocationID.y);                            );
-  GLSLC(2,     while (pos.y < scaled_size.y) {                                  );
-  GLSLC(3,         if (pos.y + 1 >= img_size.y) {                               );
-  GLSLC(4,             return;                                                  );
-  GLSLC(3,         }                                                            );
-  GLSLC(3,         haar_block(pos, scaled_size);                                );
-  GLSLC(3,         pos.y += int(gl_NumWorkGroups.y);                            );
-  GLSLC(2,       }                                                              );
-  GLSLC(2,       pos.x += int(gl_NumWorkGroups.x);                              );
-  GLSLC(1,     }                                                                );
+  GLSLC(1, apply_haar_filt(img_size);                                           );
   GLSLC(0, }                                                                    );
 
   RET(spv->compile_shader(spv, ctx, &s->shd, &spv_data, &spv_len, "main",
