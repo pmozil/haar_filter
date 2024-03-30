@@ -19,6 +19,7 @@ typedef struct HaarFilterContext {
 
   struct {
     int32_t size[2];
+    int32_t iteration;
   } opts;
 } HaarFilterContext;
 
@@ -37,24 +38,42 @@ static const char haar_filt[] = {
     C(0,}                                                                                                                 )
 };
 
+static const char copy_block[] = {
+    C(0, void copy_pixels()                             )
+    C(0, {                                                                                      )
+    C(1, for (int x = img_size.x + int(gl_GlobalInvocationID.x); x < img_size.x * 2; x += int(gl_NumWorkGroups.x)) {                )
+    C(2,     for (int y = int(gl_GlobalInvocationID.y); y < img_size.y * 2; y += int(gl_NumWorkGroups.y)) {                         )
+    C(3,     const vec3 col = texture(inputImage[0], ivec2(x, y)).rgb;                          )
+    C(3,     imageStore(outputImage[0], ivec2(x, y), vec4(col, 1.0));                           )
+    C(2,     }                                                                                  )
+    C(1, }                                                                                      )
+    C(1, for (int x = int(gl_GlobalInvocationID.x); x < img_size.x; x += int(gl_NumWorkGroups.x)) {                         )
+    C(2,     for (int y = img_size.y + int(gl_GlobalInvocationID.y); y < img_size.y * 2; y += int(gl_NumWorkGroups.y)) {            )
+    C(3,     const vec3 col = texture(inputImage[0], ivec2(x, y)).rgb;                          )
+    C(3,     imageStore(outputImage[0], ivec2(x, y), vec4(col, 1.0));                           )
+    C(2,     }                                                                                  )
+    C(1, }                                                                                      )
+    C(0,}                                                                                       )
+};
+
 static const char apply_haar_filt[] = {
   C(0, void apply_filter(const ivec2 im_size)                               )
   C(0, {                                                                    )
-  C(1, ivec2 pos = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y); )
-  C(1, if (pos.x * 2 >= im_size.x || pos.x + 1 >= im_size.x || pos.y * 2 >= im_size.y || pos.y + 1 >= im_size.y) {)
-  C(2,             return;                                                  )
-  C(1, }                                                                    )
+  // C(1, if (pos.x * 2 >= im_size.x || pos.x + 1 >= im_size.x || pos.y * 2 >= im_size.y || pos.y + 1 >= im_size.y) {)
+  // C(2,             return;                                                  )
+  // C(1, }                                                                    )
   C(1, const ivec2 scaled_size = im_size / 2;                               )
-  C(1, while (pos.x < scaled_size.x) {                                      )
-  C(2,     pos.y = int(gl_GlobalInvocationID.y);                            )
-  C(2,     while (pos.y < scaled_size.y) {                                  )
+  C(1, ivec2 pos = ivec2(scaled_size.x - gl_GlobalInvocationID.x, scaled_size.y - gl_GlobalInvocationID.y); )
+  C(1, while (pos.x >= 0) {                                      )
+  C(2,     pos.y = int(scaled_size.y - gl_GlobalInvocationID.y);                            )
+  C(2,     while (pos.y >= 0) {                                  )
   C(3,         if (pos.y + 1 >= im_size.y) {                                )
   C(4,             return;                                                  )
   C(3,         }                                                            )
   C(3,         haar_block(pos, scaled_size);                                )
-  C(3,         pos.y += int(gl_NumWorkGroups.y);                            )
+  C(3,         pos.y -= int(gl_NumWorkGroups.y);                            )
   C(2,       }                                                              )
-  C(2,       pos.x += int(gl_NumWorkGroups.x);                              )
+  C(2,       pos.x -= int(gl_NumWorkGroups.x);                              )
   C(1,     }                                                                )
   C(0, }                                                                    )
 };
@@ -81,11 +100,11 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
   RET(ff_vk_exec_pool_init(vkctx, &s->qf, &s->e, s->qf.nb_queues * 4, 0, 0, 0,
                            NULL));
   RET(ff_vk_init_sampler(vkctx, &s->sampler, 1, VK_FILTER_LINEAR));
-  RET(ff_vk_shader_init(&s->pl, &s->shd, "haar_conmpute",
+  RET(ff_vk_shader_init(&s->pl, &s->shd, "haar_compute",
                         VK_SHADER_STAGE_COMPUTE_BIT, 0));
   shd = &s->shd;
 
-  ff_vk_shader_set_compute_sizes(shd, 32, 1, 1);
+  ff_vk_shader_set_compute_sizes(shd, 32, 16, 1);
 
   desc = (FFVulkanDescriptorSetBinding[]){
       {
@@ -111,6 +130,7 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
 
   GLSLC(0, layout(push_constant, std430) uniform pushConstants {        );
   GLSLC(1,    ivec2 img_size;                                           );
+  GLSLC(1,    int iteration;                                            );
   GLSLC(0, };                                                           );
   GLSLC(0,                                                              );
 
@@ -118,13 +138,20 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
                           VK_SHADER_STAGE_COMPUTE_BIT);
 
   GLSLD(   haar_filt                                                            );
+  GLSLD(   apply_haar_filt                                                      );
+  GLSLD(   copy_block                                                           );
   GLSLC(0, void main()                                                          );
   GLSLC(0, {                                                                    );
   GLSLC(1, ivec2 pos = ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y); );
   GLSLC(1, if (pos.x * 2 >= img_size.x || pos.x + 1 >= img_size.x || pos.y * 2 >= img_size.y || pos.y + 1 >= img_size.y) {);
   GLSLC(2,             return;                                                  );
   GLSLC(1, }                                                                    );
-  GLSLC(1, apply_haar_filt(img_size);                                           );
+  GLSLC(1, apply_filter(img_size);                                              );
+  GLSLC(1, if (iteration != 0) {                                                );
+  GLSLC(2,     copy_pixels();                                                   );
+  GLSLC(1, }                                                                    );
+  // GLSLC(1, apply_filter(img_size / 2);                                              );
+  // GLSLC(1, apply_filter(img_size / 4);                                              );
   GLSLC(0, }                                                                    );
 
   RET(spv->compile_shader(spv, ctx, &s->shd, &spv_data, &spv_len, "main",
@@ -151,8 +178,12 @@ static int haar_vulkan_filter_frame(AVFilterLink *link, AVFrame *in) {
   HaarFilterContext *s = ctx->priv;
   AVFilterLink *outlink = ctx->outputs[0];
 
+  if (!s->initialized)
+    RET(init_filter(ctx, in));
+
   s->opts.size[0] = outlink->w;
   s->opts.size[1] = outlink->h;
+  s->opts.iteration = 0;
 
   out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
   if (!out) {
@@ -160,18 +191,20 @@ static int haar_vulkan_filter_frame(AVFilterLink *link, AVFrame *in) {
     goto fail;
   }
 
-  if (!s->initialized)
-    RET(init_filter(ctx, in));
-
   RET(ff_vk_filter_process_simple(&s->vkctx, &s->e, &s->pl, out, in, s->sampler,
+                                  &s->opts, sizeof(s->opts)));
+  s->opts.size[0] /= 2;
+  s->opts.size[1] /= 2;
+  s->opts.iteration = 1;
+  RET(ff_vk_filter_process_simple(&s->vkctx, &s->e, &s->pl, in, out, s->sampler,
                                   &s->opts, sizeof(s->opts)));
   err = av_frame_copy_props(out, in);
   if (err < 0)
     goto fail;
 
-  av_frame_free(&in);
+  av_frame_free(&out);
 
-  return ff_filter_frame(outlink, out);
+  return ff_filter_frame(outlink, in);
 
 fail:
   av_frame_free(&in);
