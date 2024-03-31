@@ -5,6 +5,7 @@
 #include "libavfilter/vulkan_spirv.h"
 #include "libavutil/opt.h"
 #include <math.h>
+#include <stddef.h>
 
 typedef struct HaarFilterContext {
   FFVulkanContext vkctx;
@@ -21,6 +22,8 @@ typedef struct HaarFilterContext {
     int32_t size[2];
     int32_t iteration;
   } opts;
+
+  int iterations;
 } HaarFilterContext;
 
 static const char haar_filt[] = {
@@ -41,14 +44,14 @@ static const char haar_filt[] = {
 static const char copy_block[] = {
     C(0, void copy_pixels()                             )
     C(0, {                                                                                      )
-    C(1, for (int x = img_size.x + int(gl_GlobalInvocationID.x); x < img_size.x * 2; x += int(gl_NumWorkGroups.x)) {                )
-    C(2,     for (int y = int(gl_GlobalInvocationID.y); y < img_size.y * 2; y += int(gl_NumWorkGroups.y)) {                         )
+    C(1, for (int x = img_size.x + int(gl_GlobalInvocationID.x); x <= img_size.x * 2; x += int(gl_NumWorkGroups.x)) {                )
+    C(2,     for (int y = int(gl_GlobalInvocationID.y); y <= img_size.y * 2; y += int(gl_NumWorkGroups.y)) {                         )
     C(3,     const vec3 col = texture(inputImage[0], ivec2(x, y)).rgb;                          )
     C(3,     imageStore(outputImage[0], ivec2(x, y), vec4(col, 1.0));                           )
     C(2,     }                                                                                  )
     C(1, }                                                                                      )
-    C(1, for (int x = int(gl_GlobalInvocationID.x); x < img_size.x; x += int(gl_NumWorkGroups.x)) {                         )
-    C(2,     for (int y = img_size.y + int(gl_GlobalInvocationID.y); y < img_size.y * 2; y += int(gl_NumWorkGroups.y)) {            )
+    C(1, for (int x = int(gl_GlobalInvocationID.x); x <= img_size.x; x += int(gl_NumWorkGroups.x)) {                         )
+    C(2,     for (int y = img_size.y + int(gl_GlobalInvocationID.y); y <= img_size.y * 2; y += int(gl_NumWorkGroups.y)) {            )
     C(3,     const vec3 col = texture(inputImage[0], ivec2(x, y)).rgb;                          )
     C(3,     imageStore(outputImage[0], ivec2(x, y), vec4(col, 1.0));                           )
     C(2,     }                                                                                  )
@@ -150,8 +153,6 @@ static av_cold int init_filter(AVFilterContext *ctx, AVFrame *in) {
   GLSLC(1, if (iteration != 0) {                                                );
   GLSLC(2,     copy_pixels();                                                   );
   GLSLC(1, }                                                                    );
-  // GLSLC(1, apply_filter(img_size / 2);                                              );
-  // GLSLC(1, apply_filter(img_size / 4);                                              );
   GLSLC(0, }                                                                    );
 
   RET(spv->compile_shader(spv, ctx, &s->shd, &spv_data, &spv_len, "main",
@@ -174,6 +175,7 @@ fail:
 static int haar_vulkan_filter_frame(AVFilterLink *link, AVFrame *in) {
   int err;
   AVFrame *out = NULL;
+  AVFrame *tmp = NULL;
   AVFilterContext *ctx = link->dst;
   HaarFilterContext *s = ctx->priv;
   AVFilterLink *outlink = ctx->outputs[0];
@@ -190,25 +192,37 @@ static int haar_vulkan_filter_frame(AVFilterLink *link, AVFrame *in) {
     err = AVERROR(ENOMEM);
     goto fail;
   }
-
+  tmp = ff_get_video_buffer(outlink, outlink->w, outlink->h);
+  if (!tmp) {
+    err = AVERROR(ENOMEM);
+    goto fail;
+  }
   RET(ff_vk_filter_process_simple(&s->vkctx, &s->e, &s->pl, out, in, s->sampler,
-                                  &s->opts, sizeof(s->opts)));
-  s->opts.size[0] /= 2;
-  s->opts.size[1] /= 2;
-  s->opts.iteration = 1;
-  RET(ff_vk_filter_process_simple(&s->vkctx, &s->e, &s->pl, in, out, s->sampler,
-                                  &s->opts, sizeof(s->opts)));
+                                    &s->opts, sizeof(s->opts)));
+
+  for (int i = 0; i < s->iterations - 1; i++) {
+    AVFrame *tmp_frame = tmp;
+    tmp = out;
+    out = tmp_frame;
+    s->opts.size[0] /= 2;
+    s->opts.size[1] /= 2;
+    s->opts.iteration += 1;
+    RET(ff_vk_filter_process_simple(&s->vkctx, &s->e, &s->pl, out, tmp, s->sampler,
+                                    &s->opts, sizeof(s->opts)));
+  }
   err = av_frame_copy_props(out, in);
   if (err < 0)
     goto fail;
 
-  av_frame_free(&out);
+  av_frame_free(&in);
+  av_frame_free(&tmp);
 
-  return ff_filter_frame(outlink, in);
+  return ff_filter_frame(outlink, out);
 
 fail:
   av_frame_free(&in);
   av_frame_free(&out);
+  av_frame_free(&tmp);
   return err;
 }
 static void haar_vulkan_uninit(AVFilterContext *avctx) {
@@ -229,7 +243,9 @@ static void haar_vulkan_uninit(AVFilterContext *avctx) {
   s->initialized = 0;
 }
 
+#define FLAGS (AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM)
 static const AVOption haar_vulkan_options[] = {
+    { "iterations",  "Set pass count", offsetof(HaarFilterContext, iterations), AV_OPT_TYPE_INT, { .i64 = 3 }, 1, 32, .flags = FLAGS },
     {NULL},
 };
 
