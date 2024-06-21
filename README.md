@@ -24,7 +24,7 @@ git apply src/add_filter.patch
 ```
 Reconfigure with vulkan
 ```bash
-./configure --enable-vulkan --enable-libshaderc
+./configure --disable-doc --disable-shared --enable-static --disable-ffplay --disable-ffprobe --enable-vulkan --enable-libshaderc
 ```
 Compile
 ```bash
